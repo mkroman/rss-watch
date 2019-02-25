@@ -1,0 +1,15 @@
+[package]
+authors = ["Mikkel Kroman <mk@uplink.io>"]
+edition = "2018"
+name = "rss-watch"
+version = "0.1.0"
+
+[dependencies]
+clap = "2.32"
+rss = "1.0"
+atom_syndication = "0.6"
+reqwest = "0.9"
+app_dirs = "^1.2.1"
+log = "0.4"
+env_logger = "0.6"
+failure = "0.1"

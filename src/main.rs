@@ -22,8 +22,6 @@ const APP_INFO: AppInfo = AppInfo {
 
 #[derive(Debug, Fail)]
 enum CliError {
-    #[fail(display = "IO error: {}", error)]
-    IoError { error: std::io::Error },
     #[fail(display = "{} is not a valid interval", _0)]
     InvalidInterval(String),
     #[fail(display = "interval is not specified")]
@@ -118,7 +116,7 @@ fn try_main() -> Result<(), CliError> {
         return Err(CliError::ScriptNotExecutable(path.to_string()));
     }
 
-    info!("Feed URL: {}", feed_url);
+    debug!("Feed URL: {}", feed_url);
 
     let interval = matches
         .value_of("interval")
@@ -133,7 +131,12 @@ fn try_main() -> Result<(), CliError> {
     debug!("Update interval: {:?}", interval);
 
     let mut watcher = Watcher::new(feed_url.into(), interval, executables);
+    watcher.open_database(matches.value_of("database").unwrap())?;
     watcher.probe()?;
 
-    Ok({})
+    loop {
+        watcher.process_feed()?;
+
+        std::thread::sleep(watcher.interval);
+    }
 }

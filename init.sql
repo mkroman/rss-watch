@@ -1,0 +1,13 @@
+CREATE TABLE IF NOT EXISTS `feeds` (
+  `id` INTEGER PRIMARY KEY,
+  `url` VARCHAR UNIQUE,
+  `type` INTEGER DEFAULT 1 /* 1 = RSS, 2 = Atom */
+);
+
+CREATE TABLE IF NOT EXISTS `entries` (
+  `id` INTEGER PRIMARY KEY,
+  `guid` VARCHAR UNIQUE,
+  `feed_id` INTEGER
+);
+
+

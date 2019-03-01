@@ -24,7 +24,6 @@ features = ["release_max_level_warn"]
 version = "2.32"
 features = ["suggestions", "color", "wrap_help"]
 
-
 [features]
 default = ["json"]
 json = ["serde_json"]

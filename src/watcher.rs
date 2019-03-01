@@ -210,9 +210,9 @@ impl<'a> Watcher<'a> {
         let body = self.request_feed()?;
         let feed = self.parse_feed(&body);
 
-        // Save the feed in the database.
         let database = self.database.as_ref().expect("database not initialized");
 
+        // Save the feed in the database.
         match feed {
             Ok(Feed::Rss(_)) => {
                 database.try_create_feed(self.url.as_str(), 1 /* 1 = RSS */)?;

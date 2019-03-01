@@ -24,8 +24,6 @@ const APP_INFO: AppInfo = AppInfo {
 
 #[derive(Debug, Fail)]
 enum CliError {
-    #[fail(display = "{} is not a valid interval", _0)]
-    InvalidInterval(String),
     #[fail(display = "interval is not specified")]
     MissingInterval,
     #[fail(display = "`{}' is not executable", _0)]
@@ -70,7 +68,6 @@ fn main() {
 }
 
 fn try_main() -> Result<(), CliError> {
-    // Initialize logging.
     env_logger::init();
 
     let default_database_path =

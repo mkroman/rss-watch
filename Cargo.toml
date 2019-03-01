@@ -3,6 +3,11 @@ authors = ["Mikkel Kroman <mk@uplink.io>"]
 edition = "2018"
 name = "rss-watch"
 version = "0.1.0"
+license = "BSD-2-Clause"
+keywords = ["rss", "atom", "monitor", "watch"]
+homepage = "https://github.com/mkroman/rss-watch"
+repository = "https://github.com/mkroman/rss-watch"
+description = "rss-watch is a command-line rss/atom feed watching utillity."
 
 [dependencies]
 rss = "1.0"

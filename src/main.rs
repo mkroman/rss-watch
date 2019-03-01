@@ -1,7 +1,7 @@
 use app_dirs::{get_app_dir, AppDataType, AppInfo};
-use clap::{crate_authors, crate_version, App, Arg};
+use clap::{crate_authors, crate_version, App, AppSettings, Arg};
 use failure::Fail;
-use log::{debug, info};
+use log::debug;
 
 use std::path::Path;
 use std::time::Duration;
@@ -9,11 +9,13 @@ use std::time::Duration;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
+mod database;
 mod error;
 mod watcher;
-use watcher::Watcher;
 
+pub use database::Database;
 pub use error::Error;
+pub use watcher::Watcher;
 
 const APP_INFO: AppInfo = AppInfo {
     name: "rss-watch",
@@ -75,44 +77,41 @@ fn try_main() -> Result<(), CliError> {
         get_app_dir(AppDataType::UserData, &APP_INFO, "database.db").unwrap();
 
     let matches = App::new("rss-watch")
+        .setting(AppSettings::ColoredHelp)
         .version(crate_version!())
         .author(crate_authors!("\n"))
         .about("Scriptable RSS/Atom feed watching tool")
-        .arg(
-            Arg::with_name("exec")
-                .short("e")
-                .long("exec")
-                .value_name("BIN")
-                .takes_value(true)
-                .required(true)
-                .multiple(true)
-                .number_of_values(1),
-        )
         .arg(
             Arg::with_name("interval")
                 .short("i")
                 .long("interval")
                 .help("Feed refresh interval in seconds")
-                .value_name("INTERVAL")
                 .default_value("3600")
+                .value_name("INTERVAL")
                 .takes_value(true),
         )
         .arg(
             Arg::with_name("database")
                 .short("d")
                 .long("database")
-                .value_name("DATABASE")
                 .help("Database file path")
-                .default_value(default_database_path.to_str().unwrap())
-                .required(true),
+                .value_name("DATABASE")
+                .default_value(default_database_path.to_str().unwrap()),
         )
-        .arg(Arg::with_name("url").required(true))
+        .arg(Arg::with_name("url").value_name("URL").required(true))
+        .arg(
+            Arg::with_name("scripts")
+                .required(true)
+                .multiple(true)
+                .value_name("SCRIPT")
+                .help("Program to execute when there's new entries in the feed. Can be specified multiple times.")
+        )
         .get_matches();
 
     let feed_url = matches.value_of("url").unwrap();
-    let executables: Vec<&str> = matches.values_of("exec").unwrap_or_default().collect();
+    let scripts: Vec<&str> = matches.values_of("scripts").unwrap_or_default().collect();
 
-    for path in executables.iter().filter(|e| !is_executable(e)) {
+    for path in scripts.iter().filter(|e| !is_executable(e)) {
         return Err(CliError::ScriptNotExecutable(path.to_string()));
     }
 
@@ -130,13 +129,13 @@ fn try_main() -> Result<(), CliError> {
 
     debug!("Update interval: {:?}", interval);
 
-    let mut watcher = Watcher::new(feed_url.into(), interval, executables);
+    let mut watcher = Watcher::new(feed_url.into(), interval, scripts);
     watcher.open_database(matches.value_of("database").unwrap())?;
     watcher.probe()?;
 
     loop {
         watcher.process_feed()?;
 
-        std::thread::sleep(watcher.interval);
+        std::thread::sleep(watcher.interval());
     }
 }

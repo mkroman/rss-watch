@@ -1,21 +1,56 @@
-use failure::{Error as FError, Fail};
 use log::{debug, error};
-use rusqlite::types::ToSql;
 
 use std::io::{BufReader, Cursor};
+use std::ops::Deref;
 use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
 use crate::error::FeedParseError;
-use crate::Error;
+use crate::{Database, Error};
 
-const INIT_SQL: &'static str = include_str!("../init.sql");
+use rusqlite::types::ToSql;
 
-pub enum FeedKind {
-    Rss,
-    Atom,
-    Undetermined,
+pub trait FeedExt {
+    /// Returns the title of this feed entry, if any.
+    fn title(&self) -> Option<&str>;
+
+    /// Returns the link of this feed entry, if any.
+    fn link(&self) -> Option<&str>;
+
+    /// Returns the unique id (GUID) of this feed antry, if any.
+    fn guid(&self) -> Option<&str>;
+}
+
+impl FeedExt for rss::Item {
+    fn title(&self) -> Option<&str> {
+        self.title()
+    }
+
+    fn link(&self) -> Option<&str> {
+        self.link()
+    }
+
+    fn guid(&self) -> Option<&str> {
+        self.guid().map(|guid| guid.value())
+    }
+}
+
+impl FeedExt for atom_syndication::Entry {
+    fn title(&self) -> Option<&str> {
+        Some(self.title())
+    }
+
+    fn link(&self) -> Option<&str> {
+        self.links()
+            .iter()
+            .find(|link| link.rel() == "alternate")
+            .map(|link| link.href())
+    }
+
+    fn guid(&self) -> Option<&str> {
+        Some(self.id())
+    }
 }
 
 pub enum Feed {
@@ -28,85 +63,8 @@ type Url = reqwest::Url;
 pub struct Watcher<'a> {
     url: Url,
     executables: Vec<&'a str>,
-    pub interval: Duration,
-    kind: FeedKind,
+    interval: Duration,
     database: Option<Database>,
-}
-
-pub struct Database {
-    connection: rusqlite::Connection,
-}
-
-impl Database {
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Database, Error> {
-        let connection = rusqlite::Connection::open(path)?;
-
-        Ok(Database {
-            connection: connection,
-        })
-    }
-
-    pub fn init(&self) -> Result<(), Error> {
-        self.connection.execute_batch(INIT_SQL)?;
-
-        Ok(())
-    }
-
-    pub fn try_create_feed(&self, feed_url: &str, kind: i64) -> Result<(), Error> {
-        self.connection.execute(
-            "INSERT OR IGNORE INTO feeds (url, type) VALUES (?1, ?2)",
-            &[&feed_url, &kind as &ToSql],
-        )?;
-
-        Ok(())
-    }
-
-    /// Returns a feed id for a given url if it exists. None otherwise.
-    pub fn get_feed_id_by_url(&self, feed_url: &str) -> Option<i64> {
-        self.connection
-            .query_row(
-                "SELECT id FROM feeds WHERE url = ?1",
-                &[&feed_url],
-                |row| -> i64 { row.get(0) },
-            )
-            .ok()
-    }
-
-    /// Returns a list of GUIDs not already present under the given feed_id.
-    pub fn find_missing_guids<'a>(
-        &self,
-        feed_id: i64,
-        guids: &[&'a str],
-    ) -> Result<Vec<&'a str>, Error> {
-        // TODO: Use virtual tables or figure out how to use carray.
-
-        let mut stmt = self
-            .connection
-            .prepare("SELECT guid FROM entries WHERE feed_id = ?1 AND guid = ?2")?;
-
-        let mut missing_guids: Vec<&str> = Vec::with_capacity(guids.len());
-
-        for guid in guids.iter() {
-            match stmt.exists(&[&feed_id as &ToSql, guid]) {
-                Ok(false) => {
-                    missing_guids.push(guid);
-                }
-                Ok(true) => {}
-                Err(e) => return Err(e.into()),
-            }
-        }
-
-        Ok(missing_guids)
-    }
-
-    pub fn try_create_feed_entry(&self, feed_id: i64, guid: &str) -> Result<(), Error> {
-        self.connection.execute(
-            "INSERT INTO entries (feed_id, guid) VALUES (?1, ?2)",
-            &[&feed_id as &ToSql, &guid],
-        )?;
-
-        Ok(())
-    }
 }
 
 impl<'a> Watcher<'a> {
@@ -116,8 +74,12 @@ impl<'a> Watcher<'a> {
             database: None,
             executables: executables,
             interval: update_interval,
-            kind: FeedKind::Undetermined,
         }
+    }
+
+    /// Returns the refresh interval.
+    pub fn interval(&self) -> Duration {
+        self.interval
     }
 
     pub fn open_database<P: AsRef<Path>>(&mut self, database_path: P) -> Result<(), Error> {
@@ -135,12 +97,12 @@ impl<'a> Watcher<'a> {
         match body.parse::<atom_syndication::Feed>() {
             Ok(feed) => Ok(Feed::Atom(feed)),
             Err(err) => {
-                error!("The response could not be parsed as an atom feed: {}", err);
+                debug!("The response could not be parsed as an atom feed: {}", err);
 
                 match rss::Channel::read_from(BufReader::new(Cursor::new(body))) {
                     Ok(feed) => Ok(Feed::Rss(feed)),
-                    Err(e) => Err(Error::FeedParseError {
-                        error: FeedParseError::RssError { error: e },
+                    Err(err) => Err(Error::FeedParseError {
+                        error: FeedParseError::RssError { error: err },
                     }),
                 }
             }
@@ -154,61 +116,55 @@ impl<'a> Watcher<'a> {
         request.text().map_err(|e| e.into())
     }
 
-    /// Requests the feed url and tries to determine whether it's an RSS or an Atom feed.
-    pub fn probe(&mut self) -> Result<(), Error> {
-        debug!("Probing feed `{}' to determine type", self.url);
+    /// Filters the given slice of entries and returns a Vec with entries that are not currently
+    /// saved in the database.
+    fn filter_missing_entries(
+        &'a self,
+        feed_id: i64,
+        entries: &'a [&'a FeedExt],
+    ) -> Result<Vec<&FeedExt>, Error> {
+        let database = self.database.as_ref().unwrap();
+
+        let mut stmt = database
+            .connection()
+            .prepare("SELECT guid FROM entries WHERE feed_id = ?1 AND guid = ?2")?;
+
+        let new_entries: Vec<&FeedExt> = entries
+            .iter()
+            .filter(|e| e.guid().is_some())
+            .filter(
+                |e| match stmt.exists(&[&feed_id as &ToSql, &e.guid().unwrap()]) {
+                    Ok(true) => false,
+                    Ok(false) => true,
+                    Err(_) => true,
+                },
+            )
+            .map(Deref::deref)
+            .collect::<Vec<&FeedExt>>();
+
+        Ok(new_entries)
+    }
+
+    pub fn process_feed(&self) -> Result<(), Error> {
+        let database = self.database.as_ref().unwrap();
+
+        let feed_id = database
+            .get_feed_id_by_url(self.url.as_str())
+            .ok_or_else(|| Error::FeedNotFound(self.url.as_str().to_string()))?;
 
         let body = self.request_feed()?;
         let feed = self.parse_feed(&body);
 
-        self.kind = match feed {
-            Ok(Feed::Rss(_)) => FeedKind::Rss,
-            Ok(Feed::Atom(_)) => FeedKind::Atom,
-            Err(e) => return Err(e),
+        let entries: Vec<&FeedExt> = match &feed {
+            Ok(Feed::Rss(feed)) => feed.items().iter().map(|i| i as &FeedExt).collect(),
+            Ok(Feed::Atom(feed)) => feed.entries().iter().map(|i| i as &FeedExt).collect(),
+            Err(_) => vec![],
         };
 
-        // Save the feed in the database.
-        let database = self.database.as_ref().expect("database not initialized");
+        let entries = self.filter_missing_entries(feed_id, &entries)?;
 
-        match feed {
-            Ok(Feed::Rss(_)) => {
-                database.try_create_feed(self.url.as_str(), 1 /* 1 = RSS */)?;
-            }
-            Ok(Feed::Atom(_)) => {
-                database.try_create_feed(self.url.as_str(), 2 /* 2 = Atom */)?;
-            }
-            Err(_) => {}
-        }
-
-        Ok(())
-    }
-
-    fn process_rss_feed(&self, feed_id: i64, feed: rss::Channel) -> Result<(), Error> {
-        let database = self.database.as_ref().unwrap();
-        let guids: Vec<&str> = feed
-            .items()
-            .into_iter()
-            .filter_map(|item| item.guid())
-            .map(|guid| guid.value())
-            .collect();
-        let unique_guids = database.find_missing_guids(feed_id, guids.as_ref())?;
-
-        debug!("Saving entries with GUIDs: {:?}", unique_guids);
-
-        let entries: Vec<&rss::Item> = feed
-            .items()
-            .as_ref()
-            .iter()
-            .filter(|entry| entry.guid().is_some())
-            .filter(|entry| {
-                unique_guids
-                    .iter()
-                    .any(|id| entry.guid().unwrap().value() == *id)
-            })
-            .collect();
-
-        for entry in entries {
-            let guid = entry.guid().map(|guid| guid.value()).unwrap_or("");
+        for entry in entries.iter() {
+            let guid = entry.guid().unwrap();
 
             for program in self.executables.iter() {
                 let status = Command::new(program)
@@ -241,52 +197,30 @@ impl<'a> Watcher<'a> {
                     }
                 }
             }
+            println!("New entry: {:?}", entry.guid());
         }
 
         Ok(())
     }
 
-    fn process_atom_feed(&self, feed_id: i64, feed: atom_syndication::Feed) -> Result<(), Error> {
-        let database = self.database.as_ref().unwrap();
-        let guids: Vec<&str> = feed.entries().into_iter().map(|entry| entry.id()).collect();
-        let unique_guids = database.find_missing_guids(feed_id, guids.as_ref())?;
+    /// Requests the feed url and tries to determine whether it's an RSS or an Atom feed.
+    pub fn probe(&mut self) -> Result<(), Error> {
+        debug!("Probing feed `{}' to determine type", self.url);
 
-        debug!("Saving entries with GUIDs: {:?}", unique_guids);
-
-        let entries: Vec<&atom_syndication::Entry> = feed
-            .entries()
-            .as_ref()
-            .iter()
-            .filter(|entry| unique_guids.iter().any(|id| entry.id() == *id))
-            .collect();
-
-        unimplemented!();
-
-        Ok(())
-    }
-
-    pub fn process_feed(&self) -> Result<(), Error> {
         let body = self.request_feed()?;
         let feed = self.parse_feed(&body);
-        let database = self.database.as_ref().unwrap();
 
-        let feed_id = database
-            .get_feed_id_by_url(self.url.as_str())
-            .ok_or_else(|| Error::FeedNotFound(self.url.as_str().to_string()))?;
+        // Save the feed in the database.
+        let database = self.database.as_ref().expect("database not initialized");
 
         match feed {
-            Ok(Feed::Rss(feed)) => {
-                self.process_rss_feed(feed_id, feed)?;
+            Ok(Feed::Rss(_)) => {
+                database.try_create_feed(self.url.as_str(), 1 /* 1 = RSS */)?;
             }
-            Ok(Feed::Atom(feed)) => {
-                self.process_atom_feed(feed_id, feed)?;
+            Ok(Feed::Atom(_)) => {
+                database.try_create_feed(self.url.as_str(), 2 /* 2 = Atom */)?;
             }
-            Err(_) => {
-                error!(
-                    "Unable to process feed of unknown type: {}",
-                    self.url.as_str()
-                );
-            }
+            Err(_) => {}
         }
 
         Ok(())

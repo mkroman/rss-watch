@@ -4,7 +4,6 @@ use failure::Fail;
 use log::debug;
 
 use std::path::Path;
-use std::time::Duration;
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -100,6 +99,10 @@ fn try_main() -> Result<(), CliError> {
                 .value_name("DATABASE")
                 .default_value(default_database_path.to_str().unwrap()),
         )
+        .arg(Arg::with_name("init")
+             .long("init")
+             .help("Saves the entries to the database without executing scripts on the first pass.")
+             .takes_value(false))
         .arg(Arg::with_name("url").value_name("URL").required(true))
         .arg(
             Arg::with_name("scripts")
@@ -130,8 +133,12 @@ fn try_main() -> Result<(), CliError> {
     watcher.open_database(matches.value_of("database").unwrap())?;
     watcher.probe()?;
 
+    if matches.is_present("init") {
+        watcher.process_feed(false)?;
+    }
+
     loop {
-        watcher.process_feed()?;
+        watcher.process_feed(true)?;
 
         std::thread::sleep(watcher.interval());
     }

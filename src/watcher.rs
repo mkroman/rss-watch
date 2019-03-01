@@ -145,7 +145,7 @@ impl<'a> Watcher<'a> {
         Ok(new_entries)
     }
 
-    pub fn process_feed(&self) -> Result<(), Error> {
+    pub fn process_feed(&self, process_entries: bool) -> Result<(), Error> {
         let database = self.database.as_ref().unwrap();
 
         let feed_id = database
@@ -165,6 +165,13 @@ impl<'a> Watcher<'a> {
 
         for entry in entries.iter() {
             let guid = entry.guid().unwrap();
+
+            // Exit early since we don't want to execute the scripts - we just want to save them.
+            if !process_entries {
+                database.try_create_feed_entry(feed_id, guid)?;
+
+                continue;
+            }
 
             for program in self.executables.iter() {
                 let status = Command::new(program)

@@ -8,6 +8,38 @@ script whenever there's a new entry on the given feed.
 
 Data about the entry is passed as environment variables to the script.
 
+## Usage
+
+`rss-watch` creates a SQLite database to keep track of previously seen feeds and
+entries.
+
+If you don't override the database path using the `-d` flag, the following
+default location will be used, depending on your platform.
+
+Platform | Path
+---------|-----
+*nix     | $XDG_DATA_HOME/rss-watch/database.db
+MacOS    | $HOME/Library/Application Support/rss-watch/database.db
+Windows  | %LOCALAPPDATA%\mkroman\rss-watch\database.db
+
+It's a good idea to run `rss-watch` with `--init` the first time you're watching
+a new feed if you don't want to execute the scripts for all existing entries in
+the feed.
+
+```
+rss-watch --init -i 6h https://blog.rust-lang.org/feed.xml ./some-script.sh
+```
+
+Will start watching the Rust blog and only run `./some-script.sh` when there's a
+new entry from this point forward, whereas
+
+```
+rss-watch -i 6h https://blog.rust-lang.org/feed.xml ./some-script.sh
+```
+
+Will immediately run `./some-script.sh` for each existing entry if this is the
+first time this feed is being watched.
+
 ## Examples
 
 

@@ -80,13 +80,18 @@ FEED_TITLE | The title of the new entry. <sup>_Optional_</sup>
 
 ## Installation
 
-`rss-watch` is currently only available in source form. Once it becomes more
-stable it will be available as an executable.
-
-### Installing with Cargo
-
 Prerequisites:
 * libsqlite3-dev
+
+`rss-watch` is currently only available from crates.io or GitHub.
+
+### Installing the latest stable version with Cargo
+
+```
+cargo install rss-watch
+```
+
+### Installing from git with Cargo
 
 ```
 cargo install --git https://github.com/mkroman/rss-watch.git rss-watch

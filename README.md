@@ -2,6 +2,7 @@
 
 [![Build Status](https://travis-ci.org/mkroman/rss-watch.svg?branch=master)](https://travis-ci.org/mkroman/rss-watch)
 [![License](https://img.shields.io/badge/License-BSD%202--Clause-orange.svg)](https://opensource.org/licenses/BSD-2-Clause)
+![Crates.io](https://img.shields.io/crates/v/rss-watch.svg)
 
 rss-watch is a command-line utillity for watching RSS/Atom feeds and executing a
 script whenever there's a new entry on the given feed.
@@ -91,3 +92,6 @@ Prerequisites:
 cargo install --git https://github.com/mkroman/rss-watch.git rss-watch
 ```
 
+## License
+
+This software is licensed under the [BSD 2-clause License](LICENSE).

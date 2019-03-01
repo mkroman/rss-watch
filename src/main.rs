@@ -86,7 +86,12 @@ fn try_main() -> Result<(), CliError> {
                 .short("i")
                 .long("interval")
                 .help("Feed refresh interval in seconds")
-                .default_value("3600")
+                .default_value("1h")
+                .validator(|input| {
+                    humantime::parse_duration(&input)
+                        .map(|_| ())
+                        .map_err(|err| format!("Could not parse interval: {}", err))
+                })
                 .value_name("INTERVAL")
                 .takes_value(true),
         )
@@ -120,12 +125,7 @@ fn try_main() -> Result<(), CliError> {
     let interval = matches
         .value_of("interval")
         .ok_or(CliError::MissingInterval)
-        .and_then(|interval| {
-            interval
-                .parse()
-                .map_err(|_| CliError::InvalidInterval(interval.to_string()))
-        })
-        .map(|i| Duration::from_secs(i))?;
+        .and_then(|interval| Ok(humantime::parse_duration(&interval).unwrap()))?;
 
     debug!("Update interval: {:?}", interval);
 

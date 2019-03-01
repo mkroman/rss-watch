@@ -5,18 +5,25 @@ name = "rss-watch"
 version = "0.1.0"
 
 [dependencies]
-clap = "2.32"
 rss = "1.0"
 atom_syndication = { version = "0.6", features = ["serde"] }
 reqwest = "0.9"
 app_dirs = "^1.2.1"
-log = "0.4"
 env_logger = "0.6"
 failure = "0.1"
 rusqlite = "0.16"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", optional = true }
-# rusqlite = { version = "0.16", features = ["array", "buildtime_bindgen", "vtab_v3", "bundled"] }
+humantime = "1.2"
+
+[dependencies.log]
+version = "0.4"
+features = ["release_max_level_warn"]
+
+[dependencies.clap]
+version = "2.32"
+features = ["suggestions", "color", "wrap_help"]
+
 
 [features]
 default = ["json"]

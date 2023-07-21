@@ -72,7 +72,7 @@ impl<'a> Watcher<'a> {
         Watcher {
             url: url.parse().unwrap(),
             database: None,
-            executables: executables,
+            executables,
             interval: update_interval,
         }
     }
@@ -111,7 +111,7 @@ impl<'a> Watcher<'a> {
 
     /// Requests the feed URL and returns the HTTP response body as a string.
     fn request_feed(&self) -> Result<String, Error> {
-        let mut request = reqwest::get(self.url.as_ref())?;
+        let request = reqwest::blocking::get(self.url.as_ref())?;
 
         request.text().map_err(|e| e.into())
     }
@@ -121,26 +121,25 @@ impl<'a> Watcher<'a> {
     fn filter_missing_entries(
         &'a self,
         feed_id: i64,
-        entries: &'a [&'a FeedExt],
-    ) -> Result<Vec<&FeedExt>, Error> {
+        entries: &'a [&'a dyn FeedExt],
+    ) -> Result<Vec<&dyn FeedExt>, Error> {
         let database = self.database.as_ref().unwrap();
 
         let mut stmt = database
             .connection()
             .prepare("SELECT guid FROM entries WHERE feed_id = ?1 AND guid = ?2")?;
 
-        let new_entries: Vec<&FeedExt> = entries
+        let new_entries: Vec<&dyn FeedExt> = entries
             .iter()
             .filter(|e| e.guid().is_some())
             .filter(
-                |e| match stmt.exists(&[&feed_id as &ToSql, &e.guid().unwrap()]) {
+                |e| match stmt.exists([&feed_id as &dyn ToSql, &e.guid().unwrap()]) {
                     Ok(true) => false,
-                    Ok(false) => true,
-                    Err(_) => true,
+                    Ok(false) | Err(_) => true,
                 },
             )
             .map(Deref::deref)
-            .collect::<Vec<&FeedExt>>();
+            .collect::<Vec<&dyn FeedExt>>();
 
         Ok(new_entries)
     }
@@ -155,15 +154,15 @@ impl<'a> Watcher<'a> {
         let body = self.request_feed()?;
         let feed = self.parse_feed(&body);
 
-        let entries: Vec<&FeedExt> = match &feed {
-            Ok(Feed::Rss(feed)) => feed.items().iter().map(|i| i as &FeedExt).collect(),
-            Ok(Feed::Atom(feed)) => feed.entries().iter().map(|i| i as &FeedExt).collect(),
+        let entries: Vec<&dyn FeedExt> = match &feed {
+            Ok(Feed::Rss(feed)) => feed.items().iter().map(|i| i as &dyn FeedExt).collect(),
+            Ok(Feed::Atom(feed)) => feed.entries().iter().map(|i| i as &dyn FeedExt).collect(),
             Err(_) => vec![],
         };
 
         let entries = self.filter_missing_entries(feed_id, &entries)?;
 
-        for entry in entries.iter() {
+        for entry in &entries {
             let guid = entry.guid().unwrap();
 
             // Exit early since we don't want to execute the scripts - we just want to save them.
@@ -173,7 +172,7 @@ impl<'a> Watcher<'a> {
                 continue;
             }
 
-            for program in self.executables.iter() {
+            for program in &self.executables {
                 let status = Command::new(program)
                     .env("FEED_URL", self.url.as_str())
                     .env("FEED_GUID", guid)
@@ -187,16 +186,10 @@ impl<'a> Watcher<'a> {
                             debug!("Command `{}' exited successfully", program);
 
                             database.try_create_feed_entry(feed_id, guid)?;
+                        } else if let Some(code) = status.code() {
+                            error!("Command `{}' had unexpected exit code: {}", program, code);
                         } else {
-                            match status.code() {
-                                Some(code) => {
-                                    error!(
-                                        "Command `{}' had unexpected exit code: {}",
-                                        program, code
-                                    );
-                                }
-                                None => error!("Command `{}' exited unexpectedly", program),
-                            }
+                            error!("Command `{}' exited unexpectedly", program)
                         }
                     }
                     Err(e) => {

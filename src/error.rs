@@ -1,5 +1,4 @@
 use failure::Fail;
-use reqwest;
 
 #[derive(Fail, Debug)]
 pub enum Error {
@@ -30,19 +29,19 @@ pub enum Error {
 
 impl From<reqwest::Error> for Error {
     fn from(error: reqwest::Error) -> Self {
-        Error::ReqwestError { error: error }
+        Error::ReqwestError { error }
     }
 }
 
 impl From<std::io::Error> for Error {
     fn from(error: std::io::Error) -> Self {
-        Error::IoError { error: error }
+        Error::IoError { error }
     }
 }
 
 impl From<rusqlite::Error> for Error {
     fn from(error: rusqlite::Error) -> Self {
-        Error::RusqliteError { error: error }
+        Error::RusqliteError { error }
     }
 }
 

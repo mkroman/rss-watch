@@ -36,17 +36,13 @@ enum CliError {
 
 impl From<error::Error> for CliError {
     fn from(error: error::Error) -> Self {
-        CliError::WatcherError { error: error }
+        CliError::WatcherError { error }
     }
 }
 
 #[cfg(unix)]
 fn is_executable<P: AsRef<Path>>(path: P) -> bool {
-    let metadata = match path.as_ref().metadata() {
-        Ok(metadata) => metadata,
-        Err(_) => return false,
-    };
-
+    let Ok(metadata) = path.as_ref().metadata() else { return false };
     let permissions = metadata.permissions();
 
     permissions.mode() & 0o111 != 0
@@ -61,7 +57,7 @@ fn main() {
     match try_main() {
         Ok(()) => {}
         Err(e) => {
-            eprintln!("Error: {} - {:?}", e, e);
+            eprintln!("Error: {e} - {e:?}");
         }
     }
 }
@@ -86,7 +82,7 @@ fn try_main() -> Result<(), CliError> {
                 .validator(|input| {
                     humantime::parse_duration(&input)
                         .map(|_| ())
-                        .map_err(|err| format!("Could not parse interval: {}", err))
+                        .map_err(|err| format!("Could not parse interval: {err}"))
                 })
                 .value_name("INTERVAL")
                 .takes_value(true),
@@ -116,8 +112,8 @@ fn try_main() -> Result<(), CliError> {
     let feed_url = matches.value_of("url").unwrap();
     let scripts: Vec<&str> = matches.values_of("scripts").unwrap_or_default().collect();
 
-    for path in scripts.iter().filter(|e| !is_executable(e)) {
-        return Err(CliError::ScriptNotExecutable(path.to_string()));
+    if let Some(path) = scripts.iter().find(|e| !is_executable(e)) {
+        return Err(CliError::ScriptNotExecutable((*path).to_string()));
     }
 
     debug!("Feed URL: {}", feed_url);
@@ -125,11 +121,11 @@ fn try_main() -> Result<(), CliError> {
     let interval = matches
         .value_of("interval")
         .ok_or(CliError::MissingInterval)
-        .and_then(|interval| Ok(humantime::parse_duration(&interval).unwrap()))?;
+        .map(|interval| humantime::parse_duration(interval).unwrap())?;
 
     debug!("Update interval: {:?}", interval);
 
-    let mut watcher = Watcher::new(feed_url.into(), interval, scripts);
+    let mut watcher = Watcher::new(feed_url, interval, scripts);
     watcher.open_database(matches.value_of("database").unwrap())?;
     watcher.probe()?;
 

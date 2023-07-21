@@ -36,7 +36,7 @@ enum CliError {
 
 impl From<error::Error> for CliError {
     fn from(error: error::Error) -> Self {
-        CliError::WatcherError { error: error }
+        CliError::WatcherError { error }
     }
 }
 
@@ -116,7 +116,7 @@ fn try_main() -> Result<(), CliError> {
     let feed_url = matches.value_of("url").unwrap();
     let scripts: Vec<&str> = matches.values_of("scripts").unwrap_or_default().collect();
 
-    for path in scripts.iter().filter(|e| !is_executable(e)) {
+    if let Some(path) = scripts.iter().find(|e| !is_executable(e)) {
         return Err(CliError::ScriptNotExecutable(path.to_string()));
     }
 
@@ -125,11 +125,11 @@ fn try_main() -> Result<(), CliError> {
     let interval = matches
         .value_of("interval")
         .ok_or(CliError::MissingInterval)
-        .and_then(|interval| Ok(humantime::parse_duration(&interval).unwrap()))?;
+        .map(|interval| humantime::parse_duration(interval).unwrap())?;
 
     debug!("Update interval: {:?}", interval);
 
-    let mut watcher = Watcher::new(feed_url.into(), interval, scripts);
+    let mut watcher = Watcher::new(feed_url, interval, scripts);
     watcher.open_database(matches.value_of("database").unwrap())?;
     watcher.probe()?;
 

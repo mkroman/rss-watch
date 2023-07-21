@@ -72,7 +72,7 @@ impl<'a> Watcher<'a> {
         Watcher {
             url: url.parse().unwrap(),
             database: None,
-            executables: executables,
+            executables,
             interval: update_interval,
         }
     }
@@ -133,7 +133,7 @@ impl<'a> Watcher<'a> {
             .iter()
             .filter(|e| e.guid().is_some())
             .filter(
-                |e| match stmt.exists(&[&feed_id as &dyn ToSql, &e.guid().unwrap()]) {
+                |e| match stmt.exists([&feed_id as &dyn ToSql, &e.guid().unwrap()]) {
                     Ok(true) => false,
                     Ok(false) => true,
                     Err(_) => true,

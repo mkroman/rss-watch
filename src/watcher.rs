@@ -135,8 +135,7 @@ impl<'a> Watcher<'a> {
             .filter(
                 |e| match stmt.exists([&feed_id as &dyn ToSql, &e.guid().unwrap()]) {
                     Ok(true) => false,
-                    Ok(false) => true,
-                    Err(_) => true,
+                    Ok(false) | Err(_) => true,
                 },
             )
             .map(Deref::deref)
@@ -163,7 +162,7 @@ impl<'a> Watcher<'a> {
 
         let entries = self.filter_missing_entries(feed_id, &entries)?;
 
-        for entry in entries.iter() {
+        for entry in &entries {
             let guid = entry.guid().unwrap();
 
             // Exit early since we don't want to execute the scripts - we just want to save them.
@@ -173,7 +172,7 @@ impl<'a> Watcher<'a> {
                 continue;
             }
 
-            for program in self.executables.iter() {
+            for program in &self.executables {
                 let status = Command::new(program)
                     .env("FEED_URL", self.url.as_str())
                     .env("FEED_GUID", guid)
@@ -187,16 +186,10 @@ impl<'a> Watcher<'a> {
                             debug!("Command `{}' exited successfully", program);
 
                             database.try_create_feed_entry(feed_id, guid)?;
+                        } else if let Some(code) = status.code() {
+                            error!("Command `{}' had unexpected exit code: {}", program, code);
                         } else {
-                            match status.code() {
-                                Some(code) => {
-                                    error!(
-                                        "Command `{}' had unexpected exit code: {}",
-                                        program, code
-                                    );
-                                }
-                                None => error!("Command `{}' exited unexpectedly", program),
-                            }
+                            error!("Command `{}' exited unexpectedly", program)
                         }
                     }
                     Err(e) => {

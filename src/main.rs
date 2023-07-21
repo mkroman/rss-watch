@@ -42,11 +42,7 @@ impl From<error::Error> for CliError {
 
 #[cfg(unix)]
 fn is_executable<P: AsRef<Path>>(path: P) -> bool {
-    let metadata = match path.as_ref().metadata() {
-        Ok(metadata) => metadata,
-        Err(_) => return false,
-    };
-
+    let Ok(metadata) = path.as_ref().metadata() else { return false };
     let permissions = metadata.permissions();
 
     permissions.mode() & 0o111 != 0
@@ -61,7 +57,7 @@ fn main() {
     match try_main() {
         Ok(()) => {}
         Err(e) => {
-            eprintln!("Error: {} - {:?}", e, e);
+            eprintln!("Error: {e} - {e:?}");
         }
     }
 }
@@ -86,7 +82,7 @@ fn try_main() -> Result<(), CliError> {
                 .validator(|input| {
                     humantime::parse_duration(&input)
                         .map(|_| ())
-                        .map_err(|err| format!("Could not parse interval: {}", err))
+                        .map_err(|err| format!("Could not parse interval: {err}"))
                 })
                 .value_name("INTERVAL")
                 .takes_value(true),
@@ -117,7 +113,7 @@ fn try_main() -> Result<(), CliError> {
     let scripts: Vec<&str> = matches.values_of("scripts").unwrap_or_default().collect();
 
     if let Some(path) = scripts.iter().find(|e| !is_executable(e)) {
-        return Err(CliError::ScriptNotExecutable(path.to_string()));
+        return Err(CliError::ScriptNotExecutable((*path).to_string()));
     }
 
     debug!("Feed URL: {}", feed_url);

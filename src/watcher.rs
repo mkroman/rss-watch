@@ -111,7 +111,7 @@ impl<'a> Watcher<'a> {
 
     /// Requests the feed URL and returns the HTTP response body as a string.
     fn request_feed(&self) -> Result<String, Error> {
-        let mut request = reqwest::get(self.url.as_ref())?;
+        let request = reqwest::blocking::get(self.url.as_ref())?;
 
         request.text().map_err(|e| e.into())
     }
@@ -121,26 +121,26 @@ impl<'a> Watcher<'a> {
     fn filter_missing_entries(
         &'a self,
         feed_id: i64,
-        entries: &'a [&'a FeedExt],
-    ) -> Result<Vec<&FeedExt>, Error> {
+        entries: &'a [&'a dyn FeedExt],
+    ) -> Result<Vec<&dyn FeedExt>, Error> {
         let database = self.database.as_ref().unwrap();
 
         let mut stmt = database
             .connection()
             .prepare("SELECT guid FROM entries WHERE feed_id = ?1 AND guid = ?2")?;
 
-        let new_entries: Vec<&FeedExt> = entries
+        let new_entries: Vec<&dyn FeedExt> = entries
             .iter()
             .filter(|e| e.guid().is_some())
             .filter(
-                |e| match stmt.exists(&[&feed_id as &ToSql, &e.guid().unwrap()]) {
+                |e| match stmt.exists(&[&feed_id as &dyn ToSql, &e.guid().unwrap()]) {
                     Ok(true) => false,
                     Ok(false) => true,
                     Err(_) => true,
                 },
             )
             .map(Deref::deref)
-            .collect::<Vec<&FeedExt>>();
+            .collect::<Vec<&dyn FeedExt>>();
 
         Ok(new_entries)
     }
@@ -155,9 +155,9 @@ impl<'a> Watcher<'a> {
         let body = self.request_feed()?;
         let feed = self.parse_feed(&body);
 
-        let entries: Vec<&FeedExt> = match &feed {
-            Ok(Feed::Rss(feed)) => feed.items().iter().map(|i| i as &FeedExt).collect(),
-            Ok(Feed::Atom(feed)) => feed.entries().iter().map(|i| i as &FeedExt).collect(),
+        let entries: Vec<&dyn FeedExt> = match &feed {
+            Ok(Feed::Rss(feed)) => feed.items().iter().map(|i| i as &dyn FeedExt).collect(),
+            Ok(Feed::Atom(feed)) => feed.entries().iter().map(|i| i as &dyn FeedExt).collect(),
             Err(_) => vec![],
         };
 

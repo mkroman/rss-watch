@@ -1,5 +1,5 @@
-use app_dirs::{get_app_dir, AppDataType, AppInfo};
 use clap::{crate_authors, crate_version, App, AppSettings, Arg};
+use directories::ProjectDirs;
 use failure::Fail;
 use log::debug;
 
@@ -15,11 +15,6 @@ mod watcher;
 pub use database::Database;
 pub use error::Error;
 pub use watcher::Watcher;
-
-const APP_INFO: AppInfo = AppInfo {
-    name: "rss-watch",
-    author: "Mikkel Kroman",
-};
 
 #[derive(Debug, Fail)]
 enum CliError {
@@ -42,7 +37,9 @@ impl From<error::Error> for CliError {
 
 #[cfg(unix)]
 fn is_executable<P: AsRef<Path>>(path: P) -> bool {
-    let Ok(metadata) = path.as_ref().metadata() else { return false };
+    let Ok(metadata) = path.as_ref().metadata() else {
+        return false;
+    };
     let permissions = metadata.permissions();
 
     permissions.mode() & 0o111 != 0
@@ -65,8 +62,10 @@ fn main() {
 fn try_main() -> Result<(), CliError> {
     env_logger::init();
 
-    let default_database_path =
-        get_app_dir(AppDataType::UserData, &APP_INFO, "database.db").unwrap();
+    let proj_dirs =
+        ProjectDirs::from("dk.maero", "", "rss-watch").expect("could not get user project dirs");
+
+    let default_database_path = proj_dirs.data_local_dir().join("database.db");
 
     let matches = App::new("rss-watch")
         .setting(AppSettings::ColoredHelp)

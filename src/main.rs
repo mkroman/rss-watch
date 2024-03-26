@@ -1,7 +1,7 @@
 use clap::{crate_authors, crate_version, App, AppSettings, Arg};
 use directories::ProjectDirs;
-use failure::Fail;
 use log::debug;
+use thiserror::Error;
 
 use std::path::Path;
 
@@ -16,23 +16,14 @@ pub use database::Database;
 pub use error::Error;
 pub use watcher::Watcher;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 enum CliError {
-    #[fail(display = "interval is not specified")]
+    #[error("interval is not specified")]
     MissingInterval,
-    #[fail(display = "`{}' is not executable", _0)]
+    #[error("`{0}' is not executable")]
     ScriptNotExecutable(String),
-    #[fail(display = "{}", error)]
-    WatcherError {
-        #[fail(cause)]
-        error: Error,
-    },
-}
-
-impl From<error::Error> for CliError {
-    fn from(error: error::Error) -> Self {
-        CliError::WatcherError { error }
-    }
+    #[error("{0}")]
+    WatcherError(#[from] Error),
 }
 
 #[cfg(unix)]

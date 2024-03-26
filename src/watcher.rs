@@ -101,9 +101,7 @@ impl<'a> Watcher<'a> {
 
                 match rss::Channel::read_from(BufReader::new(Cursor::new(body))) {
                     Ok(feed) => Ok(Feed::Rss(feed)),
-                    Err(err) => Err(Error::FeedParseError {
-                        error: FeedParseError::RssError { error: err },
-                    }),
+                    Err(err) => Err(Error::FeedParseError(FeedParseError::RssError(err))),
                 }
             }
         }

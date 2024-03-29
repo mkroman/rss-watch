@@ -2,7 +2,7 @@
 authors = ["Mikkel Kroman <mk@uplink.io>"]
 edition = "2021"
 name = "rss-watch"
-version = "0.1.0"
+version = "0.2.0"
 license = "BSD-2-Clause"
 keywords = ["rss", "atom", "monitor", "watch"]
 homepage = "https://github.com/mkroman/rss-watch"

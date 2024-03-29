@@ -23,3 +23,15 @@ pub struct Opts {
     /// Scripts to execute when there's new entries in the feed
     pub scripts: Vec<PathBuf>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn verify_cli() {
+        use clap::CommandFactory;
+
+        Opts::command().debug_assert()
+    }
+}

@@ -5,6 +5,7 @@ use thiserror::Error;
 use tracing::debug;
 
 use std::path::Path;
+use std::thread;
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -50,14 +51,15 @@ fn init_tracing() -> Result<()> {
 fn main() -> Result<()> {
     init_tracing()?;
 
-    let proj_dirs =
-        ProjectDirs::from("dk.maero", "", "rss-watch").expect("could not get user project dirs");
-
-    let default_database_path = proj_dirs.data_local_dir().join("database.db");
-
+    let proj_dirs = ProjectDirs::from("dk.maero", "mkroman", "rss-watch")
+        .expect("could not get user project dirs");
     let opts = cli::Opts::parse();
 
     let feed_url = opts.url;
+    let database_url = {
+        let default_database_path = proj_dirs.data_local_dir().join("database.db");
+        opts.database_path.unwrap_or(default_database_path)
+    };
     let scripts: Vec<&Path> = opts.scripts.iter().map(|x| x.as_path()).collect();
 
     if let Some(path) = scripts.iter().find(|e| !is_executable(e)) {
@@ -66,12 +68,12 @@ fn main() -> Result<()> {
 
     debug!("Feed URL: {}", feed_url);
 
-    let interval = opts.refresh_interval;
+    let refresh_interval = opts.refresh_interval;
 
-    debug!("Refresh interval: {:?}", interval);
+    debug!("Refresh interval: {:?}", refresh_interval);
 
-    let mut watcher = Watcher::new(feed_url, interval.into(), scripts);
-    watcher.open_database(opts.database_path.unwrap_or(default_database_path))?;
+    let mut watcher = Watcher::new(feed_url, refresh_interval.into(), scripts);
+    watcher.open_database(database_url)?;
     watcher.probe()?;
 
     if opts.import_only {
@@ -82,6 +84,6 @@ fn main() -> Result<()> {
     loop {
         watcher.process_feed(true)?;
 
-        std::thread::sleep(watcher.interval());
+        thread::sleep(watcher.interval());
     }
 }

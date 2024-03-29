@@ -13,7 +13,6 @@ description = "rss-watch is a command-line rss/atom feed watching utillity."
 atom_syndication = { version = "0.12", features = ["with-serde"] }
 clap = { version = "4.5", features = ["derive", "env"] }
 directories = "5.0.1"
-env_logger = "0.10"
 humantime = "2.1"
 miette = { version = "7.2.0", features = ["fancy"] }
 reqwest = { version = "0.12", features = ["blocking"] }
@@ -22,11 +21,9 @@ rusqlite = "0.31"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", optional = true }
 thiserror = "1.0.58"
+tracing = "0.1"
+tracing-subscriber = "0.3"
 url = "2.5.0"
-
-[dependencies.log]
-version = "0.4"
-features = ["release_max_level_warn"]
 
 [features]
 default = ["json"]

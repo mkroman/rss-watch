@@ -1,8 +1,8 @@
 use clap::Parser;
 use directories::ProjectDirs;
-use log::debug;
 use miette::{bail, Diagnostic};
 use thiserror::Error;
+use tracing::debug;
 
 use std::path::Path;
 
@@ -43,8 +43,14 @@ fn is_executable<P: AsRef<Path>>(path: P) -> bool {
     unimplemented!();
 }
 
+fn init_tracing() -> miette::Result<()> {
+    tracing_subscriber::fmt::init();
+
+    Ok(())
+}
+
 fn main() -> miette::Result<()> {
-    env_logger::init();
+    init_tracing()?;
 
     let proj_dirs =
         ProjectDirs::from("dk.maero", "", "rss-watch").expect("could not get user project dirs");

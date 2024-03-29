@@ -1,4 +1,5 @@
-use log::{debug, error};
+use rusqlite::types::ToSql;
+use tracing::{debug, error};
 
 use std::io::{BufReader, Cursor};
 use std::ops::Deref;
@@ -8,8 +9,6 @@ use std::time::Duration;
 
 use crate::error::FeedParseError;
 use crate::{Database, Error};
-
-use rusqlite::types::ToSql;
 
 pub trait FeedExt {
     /// Returns the title of this feed entry, if any.

@@ -62,15 +62,15 @@ type Url = reqwest::Url;
 
 pub struct Watcher<'a> {
     url: Url,
-    executables: Vec<&'a str>,
+    executables: Vec<&'a Path>,
     interval: Duration,
     database: Option<Database>,
 }
 
 impl<'a> Watcher<'a> {
-    pub fn new(url: &str, update_interval: Duration, executables: Vec<&'a str>) -> Watcher<'a> {
+    pub fn new(url: Url, update_interval: Duration, executables: Vec<&'a Path>) -> Watcher<'a> {
         Watcher {
-            url: url.parse().unwrap(),
+            url,
             database: None,
             executables,
             interval: update_interval,
@@ -181,17 +181,21 @@ impl<'a> Watcher<'a> {
                 match status {
                     Ok(status) => {
                         if status.success() {
-                            debug!("Command `{}' exited successfully", program);
+                            debug!("Command `{}' exited successfully", program.display());
 
                             database.try_create_feed_entry(feed_id, guid)?;
                         } else if let Some(code) = status.code() {
-                            error!("Command `{}' had unexpected exit code: {}", program, code);
+                            error!(
+                                "Command `{}' had unexpected exit code: {}",
+                                program.display(),
+                                code
+                            );
                         } else {
-                            error!("Command `{}' exited unexpectedly", program)
+                            error!("Command `{}' exited unexpectedly", program.display());
                         }
                     }
                     Err(e) => {
-                        error!("Command `{}' failed: {}", program, e);
+                        error!("Command `{}' failed: {}", program.display(), e);
                     }
                 }
             }

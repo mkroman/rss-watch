@@ -1,4 +1,4 @@
-use clap::{crate_authors, crate_version, App, AppSettings, Arg};
+use clap::Parser;
 use directories::ProjectDirs;
 use log::debug;
 use thiserror::Error;
@@ -8,6 +8,7 @@ use std::path::Path;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
+mod cli;
 mod database;
 mod error;
 mod watcher;
@@ -58,68 +59,26 @@ fn try_main() -> Result<(), CliError> {
 
     let default_database_path = proj_dirs.data_local_dir().join("database.db");
 
-    let matches = App::new("rss-watch")
-        .setting(AppSettings::ColoredHelp)
-        .version(crate_version!())
-        .author(crate_authors!("\n"))
-        .about("Scriptable RSS/Atom feed watching tool")
-        .arg(
-            Arg::with_name("interval")
-                .short("i")
-                .long("interval")
-                .help("Feed refresh interval in seconds")
-                .default_value("1h")
-                .validator(|input| {
-                    humantime::parse_duration(&input)
-                        .map(|_| ())
-                        .map_err(|err| format!("Could not parse interval: {err}"))
-                })
-                .value_name("INTERVAL")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("database")
-                .short("d")
-                .long("database")
-                .help("Database file path")
-                .value_name("DATABASE")
-                .default_value(default_database_path.to_str().unwrap()),
-        )
-        .arg(Arg::with_name("init")
-             .long("init")
-             .help("Saves the entries to the database without executing scripts on the first pass.")
-             .takes_value(false))
-        .arg(Arg::with_name("url").value_name("URL").required(true))
-        .arg(
-            Arg::with_name("scripts")
-                .required(true)
-                .multiple(true)
-                .value_name("SCRIPT")
-                .help("Program to execute when there's new entries in the feed. Can be specified multiple times.")
-        )
-        .get_matches();
+    let opts = cli::Opts::parse();
 
-    let feed_url = matches.value_of("url").unwrap();
-    let scripts: Vec<&str> = matches.values_of("scripts").unwrap_or_default().collect();
+    let feed_url = opts.url;
+    let scripts: Vec<&Path> = opts.scripts.iter().map(|x| x.as_path()).collect();
 
     if let Some(path) = scripts.iter().find(|e| !is_executable(e)) {
-        return Err(CliError::ScriptNotExecutable((*path).to_string()));
+        return Err(CliError::ScriptNotExecutable((*path).display().to_string()));
     }
 
     debug!("Feed URL: {}", feed_url);
 
-    let interval = matches
-        .value_of("interval")
-        .ok_or(CliError::MissingInterval)
-        .map(|interval| humantime::parse_duration(interval).unwrap())?;
+    let interval = opts.refresh_interval.ok_or(CliError::MissingInterval)?;
 
     debug!("Update interval: {:?}", interval);
 
-    let mut watcher = Watcher::new(feed_url, interval, scripts);
-    watcher.open_database(matches.value_of("database").unwrap())?;
+    let mut watcher = Watcher::new(feed_url, interval.into(), scripts);
+    watcher.open_database(opts.database_path.unwrap_or(default_database_path))?;
     watcher.probe()?;
 
-    if matches.is_present("init") {
+    if opts.import_only {
         watcher.process_feed(false)?;
     }
 

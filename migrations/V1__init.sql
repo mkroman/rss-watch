@@ -9,5 +9,3 @@ CREATE TABLE IF NOT EXISTS `entries` (
   `guid` VARCHAR UNIQUE,
   `feed_id` INTEGER
 );
-
-

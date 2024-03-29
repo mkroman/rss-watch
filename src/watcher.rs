@@ -84,8 +84,8 @@ impl<'a> Watcher<'a> {
     pub fn open_database<P: AsRef<Path>>(&mut self, database_path: P) -> Result<(), Error> {
         debug!("Opening database at `{}'", database_path.as_ref().display());
 
-        let database = Database::open(database_path)?;
-        database.init()?;
+        let mut database = Database::open(database_path)?;
+        database.migrate()?;
 
         self.database = Some(database);
 

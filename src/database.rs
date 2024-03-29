@@ -1,10 +1,14 @@
 use rusqlite::types::ToSql;
+use tracing::trace;
 
 use std::path::Path;
 
 use crate::error::Error;
 
-const INIT_SQL: &str = include_str!("../init.sql");
+mod embedded {
+    use refinery::embed_migrations;
+    embed_migrations!("migrations");
+}
 
 pub struct Database {
     connection: rusqlite::Connection,
@@ -17,8 +21,14 @@ impl Database {
         Ok(Database { connection })
     }
 
-    pub fn init(&self) -> Result<(), Error> {
-        self.connection.execute_batch(INIT_SQL)?;
+    /// Run embedded versioned migrations against the database.
+    pub fn migrate(&mut self) -> Result<(), Error> {
+        trace!("applying migrations");
+
+        let runner = embedded::migrations::runner();
+        let report = runner.run(&mut self.connection).unwrap();
+
+        trace!("applied {} migrations", report.applied_migrations().len());
 
         Ok(())
     }

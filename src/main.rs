@@ -20,11 +20,9 @@ pub use watcher::Watcher;
 
 #[derive(Debug, Diagnostic, Error)]
 enum CliError {
-    #[error("interval is not specified")]
-    MissingInterval,
-    #[error("`{0}' is not executable")]
+    #[error("Script `{0}' is not executable")]
     ScriptNotExecutable(String),
-    #[error("{0}")]
+    #[error(transparent)]
     WatcherError(#[from] Error),
 }
 
@@ -68,9 +66,9 @@ fn main() -> miette::Result<()> {
 
     debug!("Feed URL: {}", feed_url);
 
-    let interval = opts.refresh_interval.ok_or(CliError::MissingInterval)?;
+    let interval = opts.refresh_interval;
 
-    debug!("Update interval: {:?}", interval);
+    debug!("Refresh interval: {:?}", interval);
 
     let mut watcher = Watcher::new(feed_url, interval.into(), scripts);
     watcher.open_database(opts.database_path.unwrap_or(default_database_path))?;
@@ -78,6 +76,7 @@ fn main() -> miette::Result<()> {
 
     if opts.import_only {
         watcher.process_feed(false)?;
+        return Ok(());
     }
 
     loop {

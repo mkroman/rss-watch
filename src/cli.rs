@@ -9,12 +9,13 @@ use url::Url;
 #[command(author, version, about, long_about = None)]
 pub struct Opts {
     /// Refresh interval in seconds
-    #[arg(long, short, env = "REFRESH_INTERVAL")]
-    pub refresh_interval: Option<humantime::Duration>,
+    #[arg(long, short, env = "REFRESH_INTERVAL", default_value = "60s")]
+    pub refresh_interval: humantime::Duration,
     /// Path to the database file
     #[arg(long, short, env = "DATABASE_PATH")]
     pub database_path: Option<PathBuf>,
-    /// Read entries from feed and persist them to the database without executing scripts
+    /// Read entries from feed and persist them to the database without executing scripts, and then
+    /// exit
     #[arg(long, short, default_value_t = false)]
     pub import_only: bool,
     /// RSS or Atom feed URL

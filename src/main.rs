@@ -1,6 +1,7 @@
 use clap::Parser;
 use directories::ProjectDirs;
 use log::debug;
+use miette::{bail, Diagnostic};
 use thiserror::Error;
 
 use std::path::Path;
@@ -17,7 +18,7 @@ pub use database::Database;
 pub use error::Error;
 pub use watcher::Watcher;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Diagnostic, Error)]
 enum CliError {
     #[error("interval is not specified")]
     MissingInterval,
@@ -42,16 +43,7 @@ fn is_executable<P: AsRef<Path>>(path: P) -> bool {
     unimplemented!();
 }
 
-fn main() {
-    match try_main() {
-        Ok(()) => {}
-        Err(e) => {
-            eprintln!("Error: {e} - {e:?}");
-        }
-    }
-}
-
-fn try_main() -> Result<(), CliError> {
+fn main() -> miette::Result<()> {
     env_logger::init();
 
     let proj_dirs =
@@ -65,7 +57,7 @@ fn try_main() -> Result<(), CliError> {
     let scripts: Vec<&Path> = opts.scripts.iter().map(|x| x.as_path()).collect();
 
     if let Some(path) = scripts.iter().find(|e| !is_executable(e)) {
-        return Err(CliError::ScriptNotExecutable((*path).display().to_string()));
+        bail!(CliError::ScriptNotExecutable((*path).display().to_string()));
     }
 
     debug!("Feed URL: {}", feed_url);

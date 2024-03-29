@@ -28,3 +28,9 @@ url = "2.5.0"
 [features]
 default = ["json"]
 json = ["serde_json"]
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = "debuginfo"
+panic = "abort"

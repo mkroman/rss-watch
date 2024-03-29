@@ -1,6 +1,5 @@
 # rss-watch
 
-[![Build Status](https://travis-ci.org/mkroman/rss-watch.svg?branch=master)](https://travis-ci.org/mkroman/rss-watch)
 [![License](https://img.shields.io/badge/License-BSD%202--Clause-orange.svg)](https://opensource.org/licenses/BSD-2-Clause)
 ![Crates.io](https://img.shields.io/crates/v/rss-watch.svg)
 
@@ -23,26 +22,22 @@ Platform | Path
 MacOS    | $HOME/Library/Application Support/rss-watch/database.db
 Windows  | %LOCALAPPDATA%\mkroman\rss-watch\database.db
 
-It's a good idea to run `rss-watch` with `--init` the first time you're watching
-a new feed if you don't want to execute the scripts for all existing entries in
-the feed.
+You may want to run `rss-watch` with `--import-only` the first time you're
+watching a new feed, as this will import the current feed entries without
+running the scripts.
 
 ```
-rss-watch --init -i 6h https://blog.rust-lang.org/feed.xml ./some-script.sh
+rss-watch --import-only https://blog.rust-lang.org/feed.xml
 ```
 
-Will start watching the Rust blog and only run `./some-script.sh` when there's a
-new entry from this point forward, whereas
+Then, to watch and refresh a feed every 6 hours and execute `./some-script.sh`
+for each new entry, run:
 
 ```
-rss-watch -i 6h https://blog.rust-lang.org/feed.xml ./some-script.sh
+rss-watch -r 6h https://blog.rust-lang.org/feed.xml ./some-script.sh
 ```
-
-Will immediately run `./some-script.sh` for each existing entry if this is the
-first time this feed is being watched.
 
 ## Examples
-
 
 ### Publish a Redis message when there's a new commit
 
@@ -60,7 +55,7 @@ Make it executable:
 
 And run `rss-watch` with
 
-`rss-watch -i 1m https://github.com/mkroman/rss-watch/commits/master.atom
+`rss-watch -r 1m https://github.com/mkroman/rss-watch/commits/master.atom
 ./publish-redis-message.sh`
 
 And it'll now check for new commits once a minute and publish the commit url to

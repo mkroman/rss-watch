@@ -1,6 +1,6 @@
 use clap::Parser;
 use directories::ProjectDirs;
-use miette::{bail, Diagnostic};
+use miette::{bail, Diagnostic, Result};
 use thiserror::Error;
 use tracing::debug;
 
@@ -41,13 +41,13 @@ fn is_executable<P: AsRef<Path>>(path: P) -> bool {
     unimplemented!();
 }
 
-fn init_tracing() -> miette::Result<()> {
+fn init_tracing() -> Result<()> {
     tracing_subscriber::fmt::init();
 
     Ok(())
 }
 
-fn main() -> miette::Result<()> {
+fn main() -> Result<()> {
     init_tracing()?;
 
     let proj_dirs =

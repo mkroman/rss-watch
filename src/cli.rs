@@ -6,7 +6,7 @@ use clap::Parser;
 use url::Url;
 
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about)]
 pub struct Opts {
     /// Refresh interval in seconds
     #[arg(long, short, env = "REFRESH_INTERVAL", default_value = "60s")]
@@ -16,7 +16,7 @@ pub struct Opts {
     pub database_path: Option<PathBuf>,
     /// Read entries from feed and persist them to the database without executing scripts, and then
     /// exit
-    #[arg(long, short, default_value_t = false)]
+    #[arg(long, default_value_t = false)]
     pub import_only: bool,
     /// RSS or Atom feed URL
     pub url: Url,
